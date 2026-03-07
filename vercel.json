@@ -1,0 +1,23 @@
+{
+    "framework": "nextjs",
+    "buildCommand": "next build",
+    "outputDirectory": ".next",
+    "installCommand": "npm install",
+    "regions": [
+        "bom1"
+    ],
+    "env": {
+        "NODE_ENV": "production"
+    },
+    "headers": [
+        {
+            "source": "/api/(.*)",
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "no-store, max-age=0"
+                }
+            ]
+        }
+    ]
+}
