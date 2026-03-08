@@ -20,40 +20,41 @@ export async function POST(request: NextRequest) {
 
         const userId = authResult.user.id;
 
-        // Find the current active cycle
-        const activeCycle = await PaymentCycle.findOne({
+        const successfulRecords = await AutoPaymentRecord.find({
             userId,
-            status: 'active',
-        });
-
-        if (!activeCycle) {
-            return NextResponse.json({ error: 'No active payment cycle found' }, { status: 400 });
-        }
-
-        // Check if there are any successful auto payments
-        const autoPaymentRecords = await AutoPaymentRecord.find({
-            userId,
-            paymentCycleId: activeCycle._id.toString(),
             status: { $in: ['success', 'settled'] },
         });
 
-        if (autoPaymentRecords.length === 0) {
-            return NextResponse.json({ error: 'No successful auto-payments in current cycle to consolidate' }, { status: 400 });
+        if (successfulRecords.length === 0) {
+            return NextResponse.json({ error: 'No successful auto-payments available to consolidate' }, { status: 400 });
         }
 
-        // Close the current cycle early (this will also create a new one)
-        await paymentCycleService.closePaymentCycle(activeCycle._id.toString());
+        // Group records by paymentCycleId
+        const cycleIds = new Set<string>();
+        successfulRecords.forEach(record => cycleIds.add(record.paymentCycleId));
 
-        // Generate the consolidated bill for the newly closed cycle
-        const consolidatedBill = await aggregationEngine.generateConsolidatedBill(
-            userId,
-            activeCycle._id.toString()
-        );
+        let generatedCount = 0;
+
+        for (const cycleId of Array.from(cycleIds)) {
+            const cycle = await PaymentCycle.findById(cycleId);
+            if (!cycle) continue;
+
+            if (cycle.status === 'active') {
+                await paymentCycleService.closePaymentCycle(cycle._id.toString());
+            }
+
+            // Generate or update the consolidated bill
+            await aggregationEngine.generateConsolidatedBill(
+                userId,
+                cycle._id.toString()
+            );
+            generatedCount++;
+        }
 
         return NextResponse.json({
             success: true,
-            data: consolidatedBill,
-            message: 'Consolidated bill generated successfully'
+            data: { generatedCount },
+            message: `Consolidated ${generatedCount} payment cycle(s) successfully`
         });
     } catch (error: any) {
         console.error('Error generating consolidated bill manually:', error);

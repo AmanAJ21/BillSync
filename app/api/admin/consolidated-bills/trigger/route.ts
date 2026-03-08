@@ -39,33 +39,41 @@ export async function POST(request: NextRequest) {
             'Admin manually triggering consolidated bills generation for all users'
         );
 
-        // Get all active payment cycles
-        const activeCycles = await PaymentCycle.find({ status: 'active' });
+        // Get all successful auto payments
+        const successfulRecords = await AutoPaymentRecord.find({
+            status: { $in: ['success', 'settled'] },
+        });
+
+        // Group records by paymentCycleId and userId
+        const cyclesToProcess = new Map<string, { cycleId: string, userId: string }>();
+        successfulRecords.forEach(record => {
+            cyclesToProcess.set(record.paymentCycleId, {
+                cycleId: record.paymentCycleId,
+                userId: record.userId
+            });
+        });
+
         let generatedCount = 0;
         const processingErrors: any[] = [];
 
-        for (const cycle of activeCycles) {
+        for (const { cycleId, userId } of Array.from(cyclesToProcess.values())) {
             try {
-                // Check if there are any successful auto payments
-                const autoPaymentRecords = await AutoPaymentRecord.find({
-                    userId: cycle.userId,
-                    paymentCycleId: cycle._id.toString(),
-                    status: { $in: ['success', 'settled'] },
-                });
+                const cycle = await PaymentCycle.findById(cycleId);
+                if (!cycle) continue;
 
-                if (autoPaymentRecords.length > 0) {
+                if (cycle.status === 'active') {
                     // Close the current cycle early (this will also create a new one)
                     await paymentCycleService.closePaymentCycle(cycle._id.toString());
-
-                    // Generate the consolidated bill for the newly closed cycle
-                    await aggregationEngine.generateConsolidatedBill(
-                        cycle.userId,
-                        cycle._id.toString()
-                    );
-                    generatedCount++;
                 }
+
+                // Generate or update the consolidated bill for the cycle (handles duplicates elegantly now)
+                await aggregationEngine.generateConsolidatedBill(
+                    userId,
+                    cycle._id.toString()
+                );
+                generatedCount++;
             } catch (err: any) {
-                processingErrors.push({ userId: cycle.userId, error: err.message });
+                processingErrors.push({ userId, cycleId, error: err.message });
             }
         }
 

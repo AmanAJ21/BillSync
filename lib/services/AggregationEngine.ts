@@ -35,7 +35,7 @@ export class AggregationEngine {
 
       // Retrieve the payment cycle
       const paymentCycle = await PaymentCycle.findById(paymentCycleId);
-      
+
       if (!paymentCycle) {
         throw new Error(`Payment cycle ${paymentCycleId} not found`);
       }
@@ -73,18 +73,24 @@ export class AggregationEngine {
         record._id.toString()
       );
 
-      // Create ConsolidatedBill with itemized list
-      // Requirement 4.1: Generate a Consolidated_Bill at the end of each Payment_Cycle
-      // Requirement 4.4: List each Individual_Bill with provider name, bill type, amount, and payment date
-      const consolidatedBill = await ConsolidatedBill.create({
-        userId,
-        paymentCycleId,
-        cycleStartDate: paymentCycle.startDate,
-        cycleEndDate: paymentCycle.endDate,
-        totalAmount,
-        autoPaymentRecords: autoPaymentRecordIds,
-        status: 'pending',
-      });
+      // Request 4.1: Find existing or create ConsolidatedBill
+      let consolidatedBill = await ConsolidatedBill.findOne({ userId, paymentCycleId });
+
+      if (consolidatedBill) {
+        consolidatedBill.totalAmount = totalAmount;
+        consolidatedBill.autoPaymentRecords = autoPaymentRecordIds;
+        await consolidatedBill.save();
+      } else {
+        consolidatedBill = await ConsolidatedBill.create({
+          userId,
+          paymentCycleId,
+          cycleStartDate: paymentCycle.startDate,
+          cycleEndDate: paymentCycle.endDate,
+          totalAmount,
+          autoPaymentRecords: autoPaymentRecordIds,
+          status: 'pending',
+        });
+      }
 
       logger.info(
         {
