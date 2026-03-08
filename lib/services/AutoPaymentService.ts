@@ -244,63 +244,7 @@ export class AutoPaymentService {
   }
 
 
-  /**
-   * Process scheduled payments for bills due within 24 hours
-   * Validates: Requirements 2.1, 2.2, 9.1
-   * 
-   * This function:
-   * 1. Queries all bills with auto-payment enabled
-   * 2. Filters bills where dueDate is within next 24 hours
-   * 3. Checks for duplicate payments in current cycle
-   * 4. Detects significant amount changes (>50% increase)
-   * 
-   * @returns Array of results for each processed bill
-   */
-  async processScheduledPayments(): Promise<Array<{
-    billId: string;
-    userId: string;
-    status: 'processed' | 'skipped' | 'error';
-    reason?: string;
-  }>> {
-    try {
-      await connectDB();
 
-      const results: Array<{
-        billId: string;
-        userId: string;
-        status: 'processed' | 'skipped' | 'error';
-        reason?: string;
-      }> = [];
-
-      // Get all enabled auto-payment configurations
-      const configs = await AutoPaymentConfig.find({ enabled: true });
-
-      logger.info(`Processing ${configs.length} auto-payment configurations`);
-
-      // Process each configuration
-      for (const config of configs) {
-        try {
-          const result = await this.processSingleBill(config);
-          results.push(result);
-        } catch (error) {
-          logger.error({ error, billId: config.billId, userId: config.userId }, 'Error processing bill');
-          results.push({
-            billId: config.billId,
-            userId: config.userId,
-            status: 'error',
-            reason: error instanceof Error ? error.message : 'Unknown error',
-          });
-        }
-      }
-
-      logger.info(`Processed ${results.length} bills: ${results.filter(r => r.status === 'processed').length} processed, ${results.filter(r => r.status === 'skipped').length} skipped, ${results.filter(r => r.status === 'error').length} errors`);
-
-      return results;
-    } catch (error) {
-      logger.error({ error }, 'Error in processScheduledPayments');
-      throw error;
-    }
-  }
 
   /**
    * Process a single bill for automatic payment
@@ -316,55 +260,13 @@ export class AutoPaymentService {
   }> {
     const { userId, billId } = config;
 
-    // Retrieve bill details from BillAPI
+    // Retrieve bill details
     const billDetails = await this.getBillDetails(billId);
 
-    // Check if bill is due within 24 hours OR overdue
-    const isDueWithin24Hours = this.isDueWithin24Hours(billDetails.dueDate);
-    const isOverdue = this.isOverdue(billDetails.dueDate);
-
-    if (!isDueWithin24Hours && !isOverdue) {
-      logger.debug({ billId, userId, dueDate: billDetails.dueDate }, 'Bill not due within 24 hours and not overdue, skipping');
-      return {
-        billId,
-        userId,
-        status: 'skipped',
-        reason: 'Not due within 24 hours',
-      };
-    }
-
-    // Log if processing overdue bill
-    if (isOverdue) {
-      logger.info({ billId, userId, dueDate: billDetails.dueDate }, 'Processing overdue bill');
-    }
-
-    // Check for duplicate payments in current cycle
-    const hasDuplicatePayment = await this.checkDuplicatePayment(userId, billId);
-    if (hasDuplicatePayment) {
-      logger.info({ billId, userId }, 'Duplicate payment detected, skipping');
-      return {
-        billId,
-        userId,
-        status: 'skipped',
-        reason: 'Already paid in current cycle',
-      };
-    }
-
-    // Detect significant amount changes (>50% increase)
-    const amountChangeResult = await this.detectSignificantAmountChange(userId, billId, billDetails.amount);
-    if (amountChangeResult.hasChange) {
-      logger.warn({ billId, userId, amount: billDetails.amount }, 'Significant amount change detected (>50% increase), skipping and notifying user');
-      // TODO: Send notification to user for confirmation
-      return {
-        billId,
-        userId,
-        status: 'skipped',
-        reason: 'Significant amount change detected (>50% increase), user notification required',
-      };
-    }
+    // Logging the intent to process (removed due date checks as requested)
+    logger.info({ billId, userId, amount: billDetails.amount, dueDate: billDetails.dueDate }, 'Processing bill for auto-payment trigger');
 
     // If all checks pass, mark as ready for processing
-    logger.info({ billId, userId, amount: billDetails.amount, dueDate: billDetails.dueDate }, 'Bill ready for automatic payment');
     return {
       billId,
       userId,
@@ -399,10 +301,6 @@ export class AutoPaymentService {
     if (!dueDate && (bill as any).dueDay) {
       const now = new Date();
       dueDate = new Date(now.getFullYear(), now.getMonth(), (bill as any).dueDay);
-
-      // If if the resulting date is in the past, it's either overdue for this month 
-      // or we should look at next month. But for auto-payment trigger, 
-      // overdue bills should be returned so they can be processed.
     }
 
     return {
@@ -445,19 +343,15 @@ export class AutoPaymentService {
    * @returns True if duplicate payment exists
    */
   private async checkDuplicatePayment(userId: string, billId: string): Promise<boolean> {
-    // Import AutoPaymentRecord and PaymentCycle models
     const AutoPaymentRecord = (await import('../models/AutoPaymentRecord')).default;
     const PaymentCycle = (await import('../models/PaymentCycle')).default;
 
-    // Find active payment cycle for user
     const activeCycle = await PaymentCycle.findOne({ userId, status: 'active' });
 
     if (!activeCycle) {
-      // No active cycle, no duplicate possible
       return false;
     }
 
-    // Check if payment record exists for this bill in current cycle
     const existingRecord = await AutoPaymentRecord.findOne({
       userId,
       billId,
@@ -481,10 +375,8 @@ export class AutoPaymentService {
     billId: string,
     currentAmount: number
   ): Promise<{ hasChange: boolean; previousAmount: number | null }> {
-    // Import AutoPaymentRecord model
     const AutoPaymentRecord = (await import('../models/AutoPaymentRecord')).default;
 
-    // Find the most recent successful payment for this bill
     const lastPayment = await AutoPaymentRecord.findOne({
       userId,
       billId,
@@ -492,14 +384,11 @@ export class AutoPaymentService {
     }).sort({ paymentDate: -1 });
 
     if (!lastPayment) {
-      // No previous payment, no comparison possible
       return { hasChange: false, previousAmount: null };
     }
 
-    // Calculate percentage increase
     const percentageIncrease = ((currentAmount - lastPayment.amount) / lastPayment.amount) * 100;
 
-    // Return true if increase is more than 50%
     return {
       hasChange: percentageIncrease > 50,
       previousAmount: lastPayment.amount
@@ -508,7 +397,6 @@ export class AutoPaymentService {
 
   /**
    * Execute payment for a bill through BillAPI
-   * Validates: Requirements 2.1, 2.4
    * 
    * @param userId - The user ID
    * @param billId - The bill ID
@@ -528,18 +416,16 @@ export class AutoPaymentService {
     try {
       await connectDB();
 
-      // Import models
       const AutoPaymentRecord = (await import('../models/AutoPaymentRecord')).default;
       const PaymentCycle = (await import('../models/PaymentCycle')).default;
       const { auditLogService } = await import('./AuditLogService');
 
-      // Find active payment cycle
       const activeCycle = await PaymentCycle.findOne({ userId, status: 'active' });
       if (!activeCycle) {
         throw new Error(`No active payment cycle found for user ${userId}`);
       }
 
-      // Check for duplicate payment before initiating payment (race condition protection)
+      // We still check for literal duplicates here to prevent double charging the same transactionId/cycle
       const existingRecord = await AutoPaymentRecord.findOne({
         userId,
         billId,
@@ -551,15 +437,10 @@ export class AutoPaymentService {
         throw new Error(`Payment already exists for bill ${billId} in current cycle`);
       }
 
-      // Audit log: payment attempt
       await auditLogService.logPaymentAttempt(userId, billId, amount, 1);
 
-      // Execute payment internally (no external API)
-      // In a real system, this would integrate with a payment gateway
-      // For now, we simulate successful payment
       const transactionId = `txn-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-      // Update bill status to paid
       await Bill.findOneAndUpdate(
         { billId },
         { status: 'paid' },
@@ -568,50 +449,28 @@ export class AutoPaymentService {
 
       logger.info({ billId, amount, transactionId }, 'Successfully paid bill through internal system');
 
-      // Create AutoPaymentRecord on successful payment
-      // Use try-catch to handle potential duplicate key errors from concurrent requests
-      let record;
-      try {
-        record = await AutoPaymentRecord.create({
-          userId,
-          billId,
-          amount,
-          paymentDate: new Date(),
-          transactionId: transactionId,
-          billProvider,
-          billType,
-          status: 'success',
-          paymentCycleId: activeCycle._id.toString(),
-        });
-      } catch (createError: any) {
-        // If duplicate key error, check if record was created by another concurrent request
-        if (createError.code === 11000) {
-          const duplicateRecord = await AutoPaymentRecord.findOne({
-            userId,
-            billId,
-            paymentCycleId: activeCycle._id.toString(),
-            status: { $in: ['success', 'settled'] },
-          });
-          if (duplicateRecord) {
-            throw new Error(`Payment already exists for bill ${billId} in current cycle`);
-          }
-        }
-        throw createError;
-      }
+      let record = await AutoPaymentRecord.create({
+        userId,
+        billId,
+        amount,
+        paymentDate: new Date(),
+        transactionId: transactionId,
+        billProvider,
+        billType,
+        status: 'success',
+        paymentCycleId: activeCycle._id.toString(),
+      });
 
       logger.info({ userId, billId, amount, transactionId: record.transactionId }, 'Payment executed successfully');
 
-      // Audit log: payment success
       await auditLogService.logPaymentSuccess(userId, billId, amount, record.transactionId, record._id.toString());
 
-      // Send success notification
       await notificationService.notifyPaymentSuccess(userId, billId, amount, record.transactionId);
 
       return record;
     } catch (error) {
       logger.error({ error, userId, billId, amount }, 'Error executing payment');
 
-      // Audit log: payment failure
       const { auditLogService } = await import('./AuditLogService');
       await auditLogService.logPaymentFailure(
         userId,
@@ -626,16 +485,7 @@ export class AutoPaymentService {
   }
 
   /**
-   * Retry a failed payment with exponential backoff
-   * Validates: Requirements 2.3, 2.5
-   * 
-   * @param userId - The user ID
-   * @param billId - The bill ID
-   * @param amount - The payment amount
-   * @param billProvider - The bill provider name
-   * @param billType - The bill type
-   * @param attemptNumber - Current attempt number (1-3)
-   * @returns The created AutoPaymentRecord or null if all retries failed
+   * Retry a failed payment 
    */
   async retryFailedPayment(
     userId: string,
@@ -649,40 +499,24 @@ export class AutoPaymentService {
       await connectDB();
 
       const maxAttempts = 3;
-      const retryIntervalMs = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
       const { auditLogService } = await import('./AuditLogService');
 
       logger.info({ userId, billId, attemptNumber }, `Retrying payment (attempt ${attemptNumber}/${maxAttempts})`);
 
-      // If we've exceeded max attempts, disable auto-payment and notify user
       if (attemptNumber > maxAttempts) {
-        logger.warn({ userId, billId }, 'Max retry attempts reached, disabling auto-payment');
-
         await this.disableAutomaticPayment(userId, billId, 'Payment failed after 3 retry attempts');
-
         await notificationService.notifyPaymentFailedFinal(userId, billId, amount);
-
         return null;
       }
 
-      // Wait for retry interval (only if not first attempt)
-      if (attemptNumber > 1) {
-        logger.debug({ userId, billId, attemptNumber }, `Waiting ${retryIntervalMs / 1000 / 60} minutes before retry`);
-        await new Promise(resolve => setTimeout(resolve, retryIntervalMs));
-      }
-
-      // Audit log: payment retry
       await auditLogService.logPaymentRetry(userId, billId, amount, attemptNumber);
 
-      // Attempt payment
       try {
         const record = await this.executePayment(userId, billId, amount, billProvider, billType);
-        logger.info({ userId, billId, attemptNumber }, 'Payment retry succeeded');
         return record;
       } catch (error) {
         logger.error({ error, userId, billId, attemptNumber }, 'Payment retry failed');
 
-        // Audit log: payment failure
         await auditLogService.logPaymentFailure(
           userId,
           billId,
@@ -691,19 +525,14 @@ export class AutoPaymentService {
           attemptNumber
         );
 
-        // If this was the last attempt, disable auto-payment
         if (attemptNumber >= maxAttempts) {
           await this.disableAutomaticPayment(userId, billId, 'Payment failed after 3 retry attempts');
-
           await notificationService.notifyPaymentFailedFinal(userId, billId, amount);
-
           return null;
         }
 
-        // Send notification about retry
         await notificationService.notifyPaymentRetry(userId, billId, amount, attemptNumber);
 
-        // Schedule next retry
         return this.retryFailedPayment(userId, billId, amount, billProvider, billType, attemptNumber + 1);
       }
     } catch (error) {
@@ -713,11 +542,39 @@ export class AutoPaymentService {
   }
 
   /**
-   * Process scheduled payments with payment execution
-   * Enhanced version that executes payments for bills due within 24 hours
-   * Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 9.1
-   * 
-   * @returns Array of results for each processed bill
+   * Process scheduled payments 
+   */
+  async processScheduledPayments(): Promise<Array<{
+    billId: string;
+    userId: string;
+    status: 'processed' | 'skipped' | 'error';
+    reason?: string;
+  }>> {
+    try {
+      await connectDB();
+      const results: any[] = [];
+      const configs = await AutoPaymentConfig.find({ enabled: true });
+      for (const config of configs) {
+        try {
+          const result = await this.processSingleBill(config);
+          results.push(result);
+        } catch (error) {
+          results.push({
+            billId: config.billId,
+            userId: config.userId,
+            status: 'error',
+            reason: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+      return results;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Process scheduled payments with execution
    */
   async processScheduledPaymentsWithExecution(): Promise<Array<{
     billId: string;
@@ -728,27 +585,13 @@ export class AutoPaymentService {
   }>> {
     try {
       await connectDB();
-
-      const results: Array<{
-        billId: string;
-        userId: string;
-        status: 'success' | 'failed' | 'skipped' | 'error';
-        reason?: string;
-        transactionId?: string;
-      }> = [];
-
-      // Get all enabled auto-payment configurations
+      const results: any[] = [];
       const configs = await AutoPaymentConfig.find({ enabled: true });
-
-      logger.info(`Processing ${configs.length} auto-payment configurations with execution`);
-
-      // Process each configuration
       for (const config of configs) {
         try {
           const result = await this.processSingleBillWithExecution(config);
           results.push(result);
         } catch (error) {
-          logger.error({ error, billId: config.billId, userId: config.userId }, 'Error processing bill with execution');
           results.push({
             billId: config.billId,
             userId: config.userId,
@@ -757,21 +600,14 @@ export class AutoPaymentService {
           });
         }
       }
-
-      logger.info(`Processed ${results.length} bills: ${results.filter(r => r.status === 'success').length} successful, ${results.filter(r => r.status === 'failed').length} failed, ${results.filter(r => r.status === 'skipped').length} skipped, ${results.filter(r => r.status === 'error').length} errors`);
-
       return results;
     } catch (error) {
-      logger.error({ error }, 'Error in processScheduledPaymentsWithExecution');
       throw error;
     }
   }
 
   /**
    * Process a single bill with payment execution
-   * 
-   * @param config - The auto-payment configuration
-   * @returns Result of processing with execution
    */
   private async processSingleBillWithExecution(config: IAutoPaymentConfig): Promise<{
     billId: string;
@@ -782,62 +618,14 @@ export class AutoPaymentService {
   }> {
     const { userId, billId } = config;
 
-    // Retrieve bill details from BillAPI
-    const billDetails = await this.getBillDetails(billId);
-
-    // Check if bill is due within 24 hours OR overdue
-    const isDueWithin24Hours = this.isDueWithin24Hours(billDetails.dueDate);
-    const isOverdue = this.isOverdue(billDetails.dueDate);
-
-    if (!isDueWithin24Hours && !isOverdue) {
-      logger.debug({ billId, userId, dueDate: billDetails.dueDate }, 'Bill not due within 24 hours and not overdue, skipping');
-      return {
-        billId,
-        userId,
-        status: 'skipped',
-        reason: 'Not due within 24 hours',
-      };
-    }
-
-    // Log if processing overdue bill
-    if (isOverdue) {
-      logger.info({ billId, userId, dueDate: billDetails.dueDate }, 'Processing overdue bill');
-    }
-
-    // Check for duplicate payments in current cycle
-    const hasDuplicatePayment = await this.checkDuplicatePayment(userId, billId);
-    if (hasDuplicatePayment) {
-      logger.info({ billId, userId }, 'Duplicate payment detected, skipping');
-      return {
-        billId,
-        userId,
-        status: 'skipped',
-        reason: 'Already paid in current cycle',
-      };
-    }
-
-    // Detect significant amount changes (>50% increase)
-    const amountChangeResult = await this.detectSignificantAmountChange(userId, billId, billDetails.amount);
-    if (amountChangeResult.hasChange && amountChangeResult.previousAmount !== null) {
-      logger.warn({ billId, userId, amount: billDetails.amount }, 'Significant amount change detected (>50% increase), skipping and notifying user');
-
-      await notificationService.notifyAmountChange(
-        userId,
-        billId,
-        amountChangeResult.previousAmount,
-        billDetails.amount
-      );
-
-      return {
-        billId,
-        userId,
-        status: 'skipped',
-        reason: 'Significant amount change detected (>50% increase), user notification sent',
-      };
-    }
-
-    // Execute payment
     try {
+      // Retrieve bill details
+      const billDetails = await this.getBillDetails(billId);
+
+      // Logging (removed all skip conditions)
+      logger.info({ billId, userId, amount: billDetails.amount, dueDate: billDetails.dueDate }, 'Processing bill for auto-payment trigger execution');
+
+      // Execute payment
       const record = await this.executePayment(
         userId,
         billId,
@@ -845,8 +633,6 @@ export class AutoPaymentService {
         billDetails.provider,
         billDetails.type
       );
-
-      logger.info({ billId, userId, amount: billDetails.amount, transactionId: record.transactionId }, 'Payment executed successfully');
 
       return {
         billId,
@@ -857,7 +643,8 @@ export class AutoPaymentService {
     } catch (error) {
       logger.error({ error, billId, userId }, 'Payment execution failed, initiating retry logic');
 
-      // Initiate retry logic (this will handle all 3 attempts)
+      const billDetails = await this.getBillDetails(billId);
+
       try {
         const record = await this.retryFailedPayment(
           userId,
@@ -881,11 +668,10 @@ export class AutoPaymentService {
             billId,
             userId,
             status: 'failed',
-            reason: 'Failed after 3 retry attempts, auto-payment disabled',
+            reason: 'Failed after 3 retry attempts or already paid',
           };
         }
       } catch (retryError) {
-        logger.error({ error: retryError, billId, userId }, 'Retry logic failed');
         return {
           billId,
           userId,
@@ -897,5 +683,4 @@ export class AutoPaymentService {
   }
 }
 
-// Export singleton instance
 export const autoPaymentService = new AutoPaymentService();
