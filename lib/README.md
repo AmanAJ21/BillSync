@@ -54,13 +54,6 @@ Required environment variables in `.env.local`:
 # MongoDB
 MONGO_URL=mongodb://localhost:27017/BillSync
 
-# Redis
-REDIS_URL=redis://localhost:6379
-
-# BillAPI
-BILL_API=http://localhost:3000
-API_KEY=your_api_key
-
 # Razorpay
 RAZORPAY_KEY_ID=your_razorpay_key_id
 RAZORPAY_KEY_SECRET=your_razorpay_key_secret

@@ -1,10 +1,10 @@
 # Background Jobs
 
-This directory contains the background job processors for the Automatic Bill Payment Aggregation System.
+This directory contains the core job logic for the Automatic Bill Payment Aggregation System.
 
 ## Overview
 
-The system uses Bull (backed by Redis) to manage three scheduled background jobs:
+The system includes three main task processors that handle automated billing operations:
 
 1. **Automatic Payment Processor** - Processes scheduled payments for bills due within 24 hours
 2. **Consolidated Bill Generator** - Generates consolidated bills at the end of each payment cycle
@@ -16,8 +16,6 @@ The system uses Bull (backed by Redis) to manage three scheduled background jobs
 
 **File:** `autoPaymentProcessor.ts`
 
-**Schedule:** Every 6 hours (cron: `0 */6 * * *`)
-
 **Purpose:** Executes automatic payments for bills that are due within the next 24 hours.
 
 **Process:**
@@ -26,7 +24,6 @@ The system uses Bull (backed by Redis) to manage three scheduled background jobs
 - Checks for duplicate payments in current cycle
 - Detects significant amount changes (>50% increase)
 - Executes payments through BillAPI
-- Handles retries (up to 3 attempts with 2-hour intervals)
 - Sends notifications to users
 
 **Validates:** Requirements 2.1, 2.2
@@ -34,8 +31,6 @@ The system uses Bull (backed by Redis) to manage three scheduled background jobs
 ### 2. Consolidated Bill Generator
 
 **File:** `consolidatedBillGenerator.ts`
-
-**Schedule:** Last day of each month at 11:59 PM (cron: `59 23 28-31 * *`)
 
 **Purpose:** Generates consolidated bills for all users at the end of each payment cycle.
 
@@ -53,8 +48,6 @@ The system uses Bull (backed by Redis) to manage three scheduled background jobs
 
 **File:** `paymentCycleManager.ts`
 
-**Schedule:** First day of each month at 12:00 AM (cron: `0 0 1 * *`)
-
 **Purpose:** Manages payment cycle transitions by closing previous cycles and initializing new ones.
 
 **Process:**
@@ -67,62 +60,22 @@ The system uses Bull (backed by Redis) to manage three scheduled background jobs
 
 ## Usage
 
-### Registering Jobs
+### Execution
 
-To register all background jobs when your application starts, call the `registerAllJobs()` function:
-
-```typescript
-import { registerAllJobs } from './lib/jobs';
-
-// In your application startup code (e.g., server.ts or app.ts)
-registerAllJobs();
-```
-
-This will:
-1. Set up job processors for each queue
-2. Schedule recurring jobs with their cron expressions
-3. Log registration status
-
-### Manual Job Execution
-
-You can also manually trigger jobs for testing or administrative purposes:
+These jobs are standalone functions that can be called from API routes, serverless functions, or scheduled tasks:
 
 ```typescript
-import { autoPaymentQueue, consolidatedBillQueue, paymentCycleQueue } from './lib/queue';
+import { processAutoPayments, generateConsolidatedBills, managePaymentCycles } from './lib/jobs';
 
-// Manually trigger automatic payment processing
-await autoPaymentQueue.add('process-payments', { timestamp: new Date() });
+// Execute automatic payment processing
+await processAutoPayments();
 
-// Manually trigger consolidated bill generation
-await consolidatedBillQueue.add('generate-bills', { timestamp: new Date() });
+// Execute consolidated bill generation
+await generateConsolidatedBills();
 
-// Manually trigger payment cycle management
-await paymentCycleQueue.add('manage-cycles', { timestamp: new Date() });
+// Execute payment cycle management
+await managePaymentCycles();
 ```
-
-## Configuration
-
-### Environment Variables
-
-Ensure the following environment variables are set in your `.env.local` file:
-
-```env
-REDIS_URL=redis://localhost:6379
-BILL_API=http://localhost:3000
-API_KEY=your-api-key
-```
-
-### Redis Connection
-
-The jobs use the Redis connection configured in `lib/redis.ts`. Make sure Redis is running before starting the application.
-
-### Queue Configuration
-
-Queue settings are defined in `lib/queue.ts`:
-
-- **Retry attempts:** 3 for auto-payment, 2 for others
-- **Backoff strategy:** Exponential for auto-payment, fixed for others
-- **Job retention:** 100 completed jobs, 500 failed jobs
 
 ## Monitoring
 
@@ -135,22 +88,9 @@ All jobs log their execution status using the Pino logger:
 - Individual processing results
 - Errors and warnings
 
-### Queue Events
-
-The queues emit events that are logged:
-
-- `completed` - Job completed successfully
-- `failed` - Job failed after all retries
-
 ## Testing
 
-Integration tests are located in `__tests__/` directory:
-
-- `autoPaymentProcessor.test.ts` - Tests for automatic payment processing
-- `consolidatedBillGenerator.test.ts` - Tests for consolidated bill generation
-- `paymentCycleManager.test.ts` - Tests for payment cycle management
-
-Run tests with:
+Integration tests are located in the `__tests__/` directory:
 
 ```bash
 npm test -- lib/jobs/__tests__
@@ -158,30 +98,12 @@ npm test -- lib/jobs/__tests__
 
 ## Error Handling
 
-### Job Failures
-
-- Jobs automatically retry based on queue configuration
-- Failed jobs are logged with error details
-- Critical failures are logged for manual investigation
-
-### Service Errors
-
-- BillAPI unavailability triggers retries
-- Payment failures trigger retry logic (up to 3 attempts)
-- Database errors are logged and jobs fail gracefully
-
-## Cron Expressions
-
-| Job | Cron Expression | Description |
-|-----|----------------|-------------|
-| Auto Payment Processor | `0 */6 * * *` | Every 6 hours at minute 0 |
-| Consolidated Bill Generator | `59 23 28-31 * *` | Days 28-31 at 11:59 PM |
-| Payment Cycle Manager | `0 0 1 * *` | First day of month at midnight |
+- Failed operations are logged with error details.
+- Database errors are logged and processes fail gracefully.
+- Service unavailability is handled via internal error reporting.
 
 ## Dependencies
 
-- **Bull** - Job queue management
-- **Redis** - Queue storage and job persistence
 - **Mongoose** - Database operations
 - **Pino** - Logging
 
@@ -189,21 +111,10 @@ npm test -- lib/jobs/__tests__
 
 ```
 lib/jobs/
-├── index.ts                          # Main entry point, exports registerAllJobs()
-├── autoPaymentProcessor.ts           # Automatic payment processing job
-├── consolidatedBillGenerator.ts      # Consolidated bill generation job
-├── paymentCycleManager.ts            # Payment cycle management job
+├── index.ts                          # Main entry point for job functions
+├── autoPaymentProcessor.ts           # Automatic payment processing
+├── consolidatedBillGenerator.ts      # Consolidated bill generation
+├── paymentCycleManager.ts            # Payment cycle management
 ├── README.md                         # This file
 └── __tests__/                        # Integration tests
-    ├── autoPaymentProcessor.test.ts
-    ├── consolidatedBillGenerator.test.ts
-    └── paymentCycleManager.test.ts
 ```
-
-## Future Enhancements
-
-- Add job monitoring dashboard
-- Implement job priority levels
-- Add job cancellation support
-- Implement job result persistence
-- Add metrics and analytics
