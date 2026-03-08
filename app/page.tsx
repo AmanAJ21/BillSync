@@ -346,45 +346,45 @@ export default function GlobeScrollDemo() {
     {
       id: "hero",
       badge: "Welcome",
-      title: "Explore",
-      subtitle: "Our World",
-      description: "Journey through an immersive experience where technology meets innovation. Watch as perspectives shift and possibilities unfold with every interaction, creating a symphony of digital artistry.",
+      title: "Automate",
+      subtitle: "Your Bills.",
+      description: "BillSync is the ultimate smart payment engine. Connect your essentials, centralize your payments, and let our secure infrastructure handle the rest without ever paying a late fee again.",
       align: "left" as const,
       actions: [
-        { label: "Begin Journey", variant: "primary" as const, onClick: () => console.log("Get started clicked") },
-        { label: "Learn More", variant: "secondary" as const, onClick: () => console.log("Learn more clicked") },
+        { label: "Get Started Free", variant: "primary" as const, onClick: () => window.location.href = "/auth/signup" },
+        { label: "Login to Dashboard", variant: "secondary" as const, onClick: () => window.location.href = "/auth/login" },
       ]
     },
     {
-      id: "innovation",
-      badge: "Innovation",
-      title: "Connected Worldwide",
-      description: "From every corner of the globe, we witness the interconnected web of human achievement. Each connection represents progress, every interaction drives innovation forward into uncharted territories.",
+      id: "consolidated",
+      badge: "Consolidate",
+      title: "Unified Billing",
+      description: "Why pay 10 different bills individually? BillSync securely combines them into one single monthly settlement. Enjoy better cashflow management and significantly less hassle.",
       align: "center" as const,
     },
     {
-      id: "discovery",
-      badge: "Discovery",
-      title: "Expanding",
-      subtitle: "Possibilities",
-      description: "As we push beyond familiar boundaries, new worlds of opportunity emerge from the horizon. What seemed impossible yesterday becomes tomorrow's foundation for extraordinary achievements.",
+      id: "autopay",
+      badge: "Automation",
+      title: "Set & Forget",
+      subtitle: "Auto-Pay",
+      description: "Configure payment rules and let our powerful engine trigger payments precisely when due. Support for credit cards, debit cards, UPI, and Netbanking natively integrated.",
       align: "left" as const,
       features: [
-        { title: "Limitless Exploration", description: "Discover new dimensions of possibility and innovation" },
-        { title: "Seamless Integration", description: "Where cutting-edge technology meets human intuition" },
-        { title: "Future-Ready Solutions", description: "Built for tomorrow's challenges and opportunities" }
+        { title: "Bank-Grade Security", description: "Powered by Razorpay. All transactions are securely encrypted end-to-end." },
+        { title: "Financial Insights", description: "Monitor your month-over-month utility spending with intelligent charts." },
+        { title: "Instant Alerts", description: "Receive immediate notifications the split second a bill requires your attention." }
       ]
     },
     {
-      id: "future",
-      badge: "Future",
-      title: "Our Shared",
-      subtitle: "Tomorrow",
-      description: "In this moment of unity, we see not just a planet, but a canvas of infinite human potential. Every connection represents hope, every innovation builds bridges to our collective future of endless possibilities.",
+      id: "cta",
+      badge: "Join Us",
+      title: "Stop Paying",
+      subtitle: "Late Fees",
+      description: "Join thousands of users who have automated their financial lives with BillSync. Setup takes less than two minutes and it is completely free to start.",
       align: "center" as const,
       actions: [
-        { label: "Join the Movement", variant: "primary" as const, onClick: () => console.log("Join clicked") },
-        { label: "Explore More", variant: "secondary" as const, onClick: () => console.log("Explore clicked") }
+        { label: "Create Your Account", variant: "primary" as const, onClick: () => window.location.href = "/auth/signup" },
+        { label: "Explore Dashboard", variant: "secondary" as const, onClick: () => window.location.href = "/dashboard" }
       ]
     }
   ];
