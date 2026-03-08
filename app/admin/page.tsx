@@ -132,69 +132,129 @@ export default function AdminDashboard() {
       )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="hover:shadow-md transition-all duration-300 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+            <IconUsers size={80} />
+          </div>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
             <IconUsers className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {loading ? 'Loading...' : stats?.totalUsers.toLocaleString()}
+              {loading ? <span className="animate-pulse bg-muted text-transparent rounded">0000</span> : stats?.totalUsers.toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground mt-1">
               All registered users
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-md transition-all duration-300 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+            <IconFileText size={80} />
+          </div>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Bills</CardTitle>
             <IconFileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {loading ? 'Loading...' : stats?.totalBills.toLocaleString()}
+              {loading ? <span className="animate-pulse bg-muted text-transparent rounded">0000</span> : stats?.totalBills.toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground mt-1">
               Bills across all users
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-md transition-all duration-300 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none text-red-500">
+            <IconFileText size={80} />
+          </div>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending Bills</CardTitle>
-            <IconFileText className="h-4 w-4 text-muted-foreground" />
+            <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse"></div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {loading ? 'Loading...' : stats?.pendingBills.toLocaleString()}
+              {loading ? <span className="animate-pulse bg-muted text-transparent rounded">0000</span> : stats?.pendingBills.toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground mt-1 text-red-600/80">
               Bills awaiting payment
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-md transition-all duration-300 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none text-green-500">
+            <IconCreditCard size={80} />
+          </div>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
             <IconCreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {loading ? 'Loading...' : formatCurrency(stats?.totalRevenue || 0)}
+            <div className="text-2xl font-bold text-green-600 dark:text-green-500">
+              {loading ? <span className="animate-pulse bg-muted text-transparent rounded">0000</span> : formatCurrency(stats?.totalRevenue || 0)}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {loading ? 'Loading...' : `${stats?.totalProcessedPayments || 0} successful payments`}
+            <p className="text-xs text-muted-foreground mt-1">
+              {loading ? <span className="animate-pulse bg-muted text-transparent rounded">0000</span> : `${stats?.totalProcessedPayments || 0} successful payments`}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-6">
+        <Card className="hover:shadow-md transition-all duration-300 bg-primary/5 cursor-pointer border-primary/20" onClick={handleTriggerAutoPayments}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-primary">Trigger Auto-Payments</CardTitle>
+            {processingPayments ? <IconLoader2 className="h-4 w-4 text-primary animate-spin" /> : <IconBolt className="h-4 w-4 text-primary" />}
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mt-2">Force trigger the background auto-payment worker for all pending cycles.</p>
+          </CardContent>
+        </Card>
+
+        <Link href="/admin/users" className="block">
+          <Card className="hover:shadow-md transition-all duration-300 cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Manage Users</CardTitle>
+              <IconUserPlus className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mt-2">View, edit, or delete users. Assign admin roles.</p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/admin/bills" className="block">
+          <Card className="hover:shadow-md transition-all duration-300 cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Manage Bills</CardTitle>
+              <IconFilePlus className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mt-2">Oversee all user bills, update statuses, or delete inappropriate entries.</p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/admin/transactions" className="block">
+          <Card className="hover:shadow-md transition-all duration-300 cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">View Transactions</CardTitle>
+              <IconCreditCard className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mt-2">Review full history of manual and automated payments.</p>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+
+      <div className="mt-6">
+        <Card className="hover:shadow-md transition-all duration-300">
           <CardHeader>
             <CardTitle>Recent Admin Activity</CardTitle>
             <CardDescription>
@@ -203,78 +263,42 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="text-sm text-muted-foreground">Loading activity...</div>
-            ) : stats?.recentActivity && stats.recentActivity.length > 0 ? (
               <div className="space-y-4">
-                {stats.recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-start space-x-4">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium">{activity.description}</p>
-                      <p className="text-xs text-muted-foreground">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex items-start space-x-4 animate-pulse">
+                    <div className="w-2 h-2 bg-muted rounded-full mt-2"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-muted rounded w-3/4"></div>
+                      <div className="h-3 bg-muted rounded w-1/4"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : stats?.recentActivity && stats.recentActivity.length > 0 ? (
+              <div className="space-y-6">
+                {stats.recentActivity.map((activity, index) => (
+                  <div key={activity.id} className="relative pl-6 before:absolute before:left-[3px] before:top-2 before:bottom-[-20px] before:w-[2px] before:bg-muted last:before:hidden">
+                    <div className="absolute left-[-2px] top-1 w-[12px] h-[12px] rounded-full border-2 border-white bg-primary"></div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium leading-none">{activity.description}</p>
+                        <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
+                          <span className="bg-secondary px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider">{activity.entityType}</span>
+                          • {activity.adminId ? `Admin ${activity.adminId.substring(0, 6)}` : 'System'}
+                        </p>
+                      </div>
+                      <div className="text-xs font-mono text-muted-foreground whitespace-nowrap bg-muted/50 px-2 py-1 rounded">
                         {formatTimestamp(activity.timestamp)}
-                      </p>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-sm text-muted-foreground">No recent activity</div>
+              <div className="flex h-[200px] items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
+                No recent activity recorded
+              </div>
             )}
-          </CardContent>
-        </Card>
-
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>
-              Common administrative tasks
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 ">
-            <Button
-              variant="default"
-              className="w-full justify-start mb-2"
-              size="sm"
-              onClick={handleTriggerAutoPayments}
-              disabled={processingPayments}
-            >
-              {processingPayments ? (
-                <>
-                  <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <IconBolt className="mr-2 h-4 w-4" />
-                  Trigger Auto-Payments
-                </>
-              )}
-            </Button>
-            <Link href="/admin/users" >
-              <Button variant="outline" className="w-full justify-start mb-2" size="sm">
-                <IconUserPlus className="mr-2 h-4 w-4" />
-                Manage Users
-              </Button>
-            </Link>
-            <Link href="/admin/bills" >
-              <Button variant="outline" className="w-full justify-start mb-2" size="sm">
-                <IconFilePlus className="mr-2 h-4 w-4" />
-                Manage Bills
-              </Button>
-            </Link>
-            <Link href="/admin/transactions">
-              <Button variant="outline" className="w-full justify-start mb-2" size="sm">
-                <IconCreditCard className="mr-2 h-4 w-4" />
-                View Transactions
-              </Button>
-            </Link>
-            <Link href="/admin/config">
-              <Button variant="outline" className="w-full justify-start mb-2" size="sm">
-                <IconSettings className="mr-2 h-4 w-4" />
-                System Settings
-              </Button>
-            </Link>
           </CardContent>
         </Card>
       </div>

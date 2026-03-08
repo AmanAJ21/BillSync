@@ -264,10 +264,12 @@ export default function ConsolidatedBillsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={handleTriggerBill} disabled={generating} size="sm">
-            <IconReceipt className="h-4 w-4 mr-2" />
-            {generating ? 'Generating...' : 'Generate Now'}
-          </Button>
+          {user?.role === 'admin' && (
+            <Button onClick={handleTriggerBill} disabled={generating} size="sm">
+              <IconReceipt className="h-4 w-4 mr-2" />
+              {generating ? 'Generating...' : 'Generate Now'}
+            </Button>
+          )}
           <Button onClick={() => fetchBills(page)} variant="outline" size="sm">
             <IconRefresh className="h-4 w-4 mr-2" />
             Refresh

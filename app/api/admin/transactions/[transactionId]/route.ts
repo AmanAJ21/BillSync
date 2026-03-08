@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '../../../../../lib/middleware/role';
 import AutoPaymentRecord from '../../../../../lib/models/AutoPaymentRecord';
+import ManualPayment from '../../../../../lib/models/ManualPayment';
 import Bill from '../../../../../lib/models/Bill';
 import { getDatabase } from '../../../../../lib/mongodb';
 import { ObjectId } from 'mongodb';
@@ -36,9 +37,15 @@ export async function GET(
     }
 
     // Find the transaction record
-    const transaction = await AutoPaymentRecord.findOne({
+    let transaction: any = await AutoPaymentRecord.findOne({
       transactionId: transactionId
     }).lean();
+
+    if (!transaction) {
+      transaction = await ManualPayment.findOne({
+        transactionId: transactionId
+      }).lean();
+    }
 
     if (!transaction) {
       return NextResponse.json(
@@ -106,8 +113,8 @@ export async function GET(
       transaction: {
         ...transaction,
         // Add computed fields
-        amountInRupees: transaction.amount, // AutoPaymentRecord stores in rupees
-        paymentDateFormatted: transaction.paymentDate.toISOString(),
+        amountInRupees: transaction.amount, // Both models store in rupees
+        paymentDateFormatted: transaction.paymentDate ? transaction.paymentDate.toISOString() : new Date().toISOString(),
       }
     };
 
