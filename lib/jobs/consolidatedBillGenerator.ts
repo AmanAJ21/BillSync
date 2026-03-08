@@ -1,46 +1,42 @@
-import { Job } from 'bull';
-import { consolidatedBillQueue } from '../queue';
 import { aggregationEngine } from '../services/AggregationEngine';
 import { notificationService } from '../services/NotificationService';
 import PaymentCycle from '../models/PaymentCycle';
 import logger from '../logger';
 
 /**
- * Consolidated Bill Generator Job
+ * Consolidated Bill Generator
  * Generates consolidated bills for all users at the end of each payment cycle
  * Validates: Requirements 4.1, 5.1, 7.3
- * 
- * Schedule: Runs on last day of each month at 11:59 PM
  */
 
-export interface ConsolidatedBillJobData {
+export interface ConsolidatedBillData {
   timestamp: Date;
 }
 
 /**
- * Generate consolidated bills job handler
+ * Generate consolidated bills handler
  * Finds all active payment cycles and generates consolidated bills for each
  */
-export async function generateConsolidatedBills(job: Job<ConsolidatedBillJobData>) {
-  const { timestamp } = job.data;
-  
+export async function generateConsolidatedBills(data: ConsolidatedBillData = { timestamp: new Date() }) {
+  const { timestamp } = data;
+
   logger.info(
-    { jobId: job.id, timestamp },
-    'Starting consolidated bill generator job'
+    { timestamp },
+    'Starting consolidated bill generator'
   );
 
   try {
     // Find all active payment cycles that are ending today
     const today = new Date();
     const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
-    
+
     const activeCycles = await PaymentCycle.find({
       status: 'active',
       endDate: { $lte: endOfToday },
     });
 
     logger.info(
-      { jobId: job.id, cycleCount: activeCycles.length },
+      { cycleCount: activeCycles.length },
       `Found ${activeCycles.length} payment cycles ending today`
     );
 
@@ -112,13 +108,12 @@ export async function generateConsolidatedBills(job: Job<ConsolidatedBillJobData
 
     logger.info(
       {
-        jobId: job.id,
         totalProcessed: results.length,
         successCount,
         skippedCount,
         errorCount,
       },
-      'Consolidated bill generator job completed'
+      'Consolidated bill generator completed'
     );
 
     return {
@@ -131,40 +126,13 @@ export async function generateConsolidatedBills(job: Job<ConsolidatedBillJobData
     };
   } catch (error) {
     logger.error(
-      { error, jobId: job.id },
-      'Error in consolidated bill generator job'
+      { error },
+      'Error in consolidated bill generator'
     );
     throw error;
   }
 }
 
-/**
- * Register the consolidated bill generator job
- * Sets up the job processor and schedules it to run on last day of month at 11:59 PM
- */
-export function registerConsolidatedBillGenerator() {
-  // Register job processor
-  consolidatedBillQueue.process('generate-bills', generateConsolidatedBills);
-
-  // Schedule job to run on last day of month at 11:59 PM
-  // Cron expression: "59 23 L * *" would be ideal but Bull uses node-cron which doesn't support L
-  // Instead, we'll use "59 23 28-31 * *" to run on days 28-31 at 11:59 PM
-  // The job logic will check if it's actually the last day of the month
-  consolidatedBillQueue.add(
-    'generate-bills',
-    { timestamp: new Date() },
-    {
-      repeat: {
-        cron: '59 23 28-31 * *', // Days 28-31 at 11:59 PM
-      },
-      jobId: 'consolidated-bill-generator', // Use fixed job ID to prevent duplicates
-    }
-  );
-
-  logger.info('Registered consolidated bill generator job (runs on last day of month at 11:59 PM)');
-}
-
 export default {
   generateConsolidatedBills,
-  registerConsolidatedBillGenerator,
 };

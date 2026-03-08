@@ -19,5 +19,5 @@ export async function POST(request: NextRequest) {
     maxAge: 0,
   });
 
-  return addInternalHeaders(response);
+  return addInternalHeaders(response, request);
 }

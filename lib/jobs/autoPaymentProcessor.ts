@@ -1,30 +1,26 @@
-import { Job } from 'bull';
-import { autoPaymentQueue } from '../queue';
 import { autoPaymentService } from '../services/AutoPaymentService';
 import logger from '../logger';
 
 /**
- * Automatic Payment Processor Job
+ * Automatic Payment Processor
  * Processes scheduled payments for bills due within 24 hours
  * Validates: Requirements 2.1, 2.2
- * 
- * Schedule: Runs every 6 hours
  */
 
-export interface AutoPaymentJobData {
+export interface AutoPaymentData {
   timestamp: Date;
 }
 
 /**
- * Process automatic payments job handler
+ * Process automatic payments handler
  * Calls AutoPaymentService.processScheduledPaymentsWithExecution()
  */
-export async function processAutoPayments(job: Job<AutoPaymentJobData>) {
-  const { timestamp } = job.data;
-  
+export async function processAutoPayments(data: AutoPaymentData = { timestamp: new Date() }) {
+  const { timestamp } = data;
+
   logger.info(
-    { jobId: job.id, timestamp },
-    'Starting automatic payment processor job'
+    { timestamp },
+    'Starting automatic payment processor'
   );
 
   try {
@@ -38,14 +34,13 @@ export async function processAutoPayments(job: Job<AutoPaymentJobData>) {
 
     logger.info(
       {
-        jobId: job.id,
         totalProcessed: results.length,
         successCount,
         failedCount,
         skippedCount,
         errorCount,
       },
-      'Automatic payment processor job completed'
+      'Automatic payment processor completed'
     );
 
     return {
@@ -59,38 +54,13 @@ export async function processAutoPayments(job: Job<AutoPaymentJobData>) {
     };
   } catch (error) {
     logger.error(
-      { error, jobId: job.id },
-      'Error in automatic payment processor job'
+      { error },
+      'Error in automatic payment processor'
     );
     throw error;
   }
 }
 
-/**
- * Register the automatic payment processor job
- * Sets up the job processor and schedules it to run every 6 hours
- */
-export function registerAutoPaymentProcessor() {
-  // Register job processor
-  autoPaymentQueue.process('process-payments', processAutoPayments);
-
-  // Schedule job to run every 6 hours
-  // Cron expression: "0 */6 * * *" means at minute 0 of every 6th hour
-  autoPaymentQueue.add(
-    'process-payments',
-    { timestamp: new Date() },
-    {
-      repeat: {
-        cron: '0 */6 * * *', // Every 6 hours
-      },
-      jobId: 'auto-payment-processor', // Use fixed job ID to prevent duplicates
-    }
-  );
-
-  logger.info('Registered automatic payment processor job (runs every 6 hours)');
-}
-
 export default {
   processAutoPayments,
-  registerAutoPaymentProcessor,
 };

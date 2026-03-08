@@ -3,8 +3,15 @@ import logger from './logger';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
-// Queue for automatic payment processing
-export const autoPaymentQueue = new Bull('auto-payment', REDIS_URL, {
+// Configure Redis options for production (TLS, etc.)
+const redisOptions: Bull.QueueOptions = {
+  redis: {
+    // If using rediss:// (SSL), enable TLS
+    tls: REDIS_URL.startsWith('rediss') ? { rejectUnauthorized: false } : undefined,
+    // Add connection retry strategy
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+  },
   defaultJobOptions: {
     attempts: 3,
     backoff: {
@@ -14,10 +21,14 @@ export const autoPaymentQueue = new Bull('auto-payment', REDIS_URL, {
     removeOnComplete: 100,
     removeOnFail: 500,
   },
-});
+};
+
+// Queue for automatic payment processing
+export const autoPaymentQueue = new Bull('auto-payment', REDIS_URL, redisOptions);
 
 // Queue for consolidated bill generation
 export const consolidatedBillQueue = new Bull('consolidated-bill', REDIS_URL, {
+  ...redisOptions,
   defaultJobOptions: {
     attempts: 2,
     backoff: {
@@ -31,6 +42,7 @@ export const consolidatedBillQueue = new Bull('consolidated-bill', REDIS_URL, {
 
 // Queue for payment cycle management
 export const paymentCycleQueue = new Bull('payment-cycle', REDIS_URL, {
+  ...redisOptions,
   defaultJobOptions: {
     attempts: 2,
     backoff: {

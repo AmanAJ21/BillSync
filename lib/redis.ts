@@ -13,6 +13,7 @@ export async function getRedisClient() {
   redisClient = createClient({
     url: REDIS_URL,
     socket: {
+      tls: REDIS_URL.startsWith('rediss'),
       reconnectStrategy: (retries) => {
         if (retries > 10) {
           logger.error('Redis reconnection failed after 10 attempts');

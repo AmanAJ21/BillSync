@@ -1,45 +1,40 @@
-import { Job } from 'bull';
-import { paymentCycleQueue } from '../queue';
 import { paymentCycleService } from '../services/PaymentCycleService';
 import PaymentCycle from '../models/PaymentCycle';
 import logger from '../logger';
 
 /**
- * Payment Cycle Manager Job
+ * Payment Cycle Manager
  * Manages payment cycle transitions by closing previous cycles and initializing new ones
  * Validates: Requirements 7.3, 7.4
- * 
- * Schedule: Runs on first day of each month at 12:00 AM
  */
 
-export interface PaymentCycleJobData {
+export interface PaymentCycleData {
   timestamp: Date;
 }
 
 /**
- * Manage payment cycles job handler
+ * Manage payment cycles handler
  * Closes all active payment cycles that have ended and initializes new cycles
  */
-export async function managePaymentCycles(job: Job<PaymentCycleJobData>) {
-  const { timestamp } = job.data;
-  
+export async function managePaymentCycles(data: PaymentCycleData = { timestamp: new Date() }) {
+  const { timestamp } = data;
+
   logger.info(
-    { jobId: job.id, timestamp },
-    'Starting payment cycle manager job'
+    { timestamp },
+    'Starting payment cycle manager'
   );
 
   try {
     // Find all active payment cycles that have ended
     const now = new Date();
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    
+
     const activeCycles = await PaymentCycle.find({
       status: 'active',
       endDate: { $lt: now },
     });
 
     logger.info(
-      { jobId: job.id, cycleCount: activeCycles.length },
+      { cycleCount: activeCycles.length },
       `Found ${activeCycles.length} active payment cycles that have ended`
     );
 
@@ -92,12 +87,11 @@ export async function managePaymentCycles(job: Job<PaymentCycleJobData>) {
 
     logger.info(
       {
-        jobId: job.id,
         totalProcessed: results.length,
         successCount,
         errorCount,
       },
-      'Payment cycle manager job completed'
+      'Payment cycle manager completed'
     );
 
     return {
@@ -109,38 +103,13 @@ export async function managePaymentCycles(job: Job<PaymentCycleJobData>) {
     };
   } catch (error) {
     logger.error(
-      { error, jobId: job.id },
-      'Error in payment cycle manager job'
+      { error },
+      'Error in payment cycle manager'
     );
     throw error;
   }
 }
 
-/**
- * Register the payment cycle manager job
- * Sets up the job processor and schedules it to run on first day of month at 12:00 AM
- */
-export function registerPaymentCycleManager() {
-  // Register job processor
-  paymentCycleQueue.process('manage-cycles', managePaymentCycles);
-
-  // Schedule job to run on first day of month at 12:00 AM
-  // Cron expression: "0 0 1 * *" means at 00:00 on day 1 of every month
-  paymentCycleQueue.add(
-    'manage-cycles',
-    { timestamp: new Date() },
-    {
-      repeat: {
-        cron: '0 0 1 * *', // First day of month at midnight
-      },
-      jobId: 'payment-cycle-manager', // Use fixed job ID to prevent duplicates
-    }
-  );
-
-  logger.info('Registered payment cycle manager job (runs on first day of month at 12:00 AM)');
-}
-
 export default {
   managePaymentCycles,
-  registerPaymentCycleManager,
 };

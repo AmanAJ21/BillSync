@@ -10,9 +10,15 @@ const ALLOWED_ORIGINS = [
   'http://localhost:19006',
 ];
 
-function isAllowedOrigin(origin: string | null): boolean {
+function isAllowedOrigin(origin: string | null, host: string | null): boolean {
   if (!origin) return true; // Same-origin / server-side requests (no Origin header)
   if (ALLOWED_ORIGINS.includes(origin)) return true;
+
+  // Allow same-host (production vercel)
+  try {
+    if (host && new URL(origin).host === host) return true;
+  } catch { /* ignore */ }
+
   // Allow any local network IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
   try {
     const { hostname } = new URL(origin);
@@ -26,8 +32,8 @@ function isAllowedOrigin(origin: string | null): boolean {
   return false;
 }
 
-function addCorsHeaders(response: NextResponse, origin: string | null): NextResponse {
-  const allowedOrigin = origin && isAllowedOrigin(origin) ? origin : 'null';
+function addCorsHeaders(response: NextResponse, origin: string | null, host: string | null): NextResponse {
+  const allowedOrigin = origin && isAllowedOrigin(origin, host) ? origin : 'null';
   response.headers.set('Access-Control-Allow-Origin', allowedOrigin);
   response.headers.set('Access-Control-Allow-Credentials', 'true');
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -38,16 +44,17 @@ function addCorsHeaders(response: NextResponse, origin: string | null): NextResp
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const origin = request.headers.get('origin');
+  const host = request.headers.get('host');
 
   // Handle CORS preflight (OPTIONS) for all API routes immediately
   if (request.method === 'OPTIONS' && pathname.startsWith('/api/')) {
     const preflight = new NextResponse(null, { status: 204 });
-    return addCorsHeaders(preflight, origin);
+    return addCorsHeaders(preflight, origin, host);
   }
 
   // API routes — allow same-origin and trusted cross-origins (Expo), block everything else
   if (pathname.startsWith('/api/') && !pathname.startsWith('/api/webhooks/')) {
-    if (origin && !isAllowedOrigin(origin)) {
+    if (origin && !isAllowedOrigin(origin, host)) {
       return NextResponse.json(
         { error: 'Forbidden: External access not allowed' },
         { status: 403 }
@@ -55,7 +62,7 @@ export function middleware(request: NextRequest) {
     }
     // Attach CORS headers to all API responses
     const response = NextResponse.next();
-    return addCorsHeaders(response, origin);
+    return addCorsHeaders(response, origin, host);
   }
 
   // Protected routes that require authentication
