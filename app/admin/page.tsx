@@ -120,7 +120,7 @@ export default function AdminDashboard() {
   const handleTriggerConsolidated = async () => {
     try {
       setGeneratingConsolidated(true);
-      const response = await fetch('/api/consolidated-bills/trigger', {
+      const response = await fetch('/api/admin/consolidated-bills/trigger', {
         method: 'POST',
       });
       const data = await response.json();
