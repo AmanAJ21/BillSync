@@ -26,36 +26,50 @@ export class AutoPaymentService {
     try {
       await connectDB();
 
+      // Normalize billId to the canonical string ID from the Bill model
+      const bill = await this.findBillByAnyId(billId);
+      if (!bill) {
+        throw new Error(`Bill ${billId} not found`);
+      }
+      const canonicalBillId = bill.billId || billId;
+
       // Validate user has valid payment method
       await this.validatePaymentMethod(userId);
 
-      // Retrieve and validate bill details from BillAPI
-      await this.validateBillDetails(billId);
-
-      // Check if config already exists
-      let config = await AutoPaymentConfig.findOne({ userId, billId });
+      // Check if config already exists using either canonical ID or original ID
+      let config = await AutoPaymentConfig.findOne({
+        userId,
+        $or: [{ billId: canonicalBillId }, { billId: billId }]
+      });
 
       if (config) {
+        // Update to canonical ID if it was using a legacy ID
+        if (config.billId !== canonicalBillId) {
+          config.billId = canonicalBillId;
+        }
+
         // Re-enable if it was disabled
         if (!config.enabled) {
           config.enabled = true;
           config.disabledReason = undefined;
           await config.save();
-          logger.info(`Re-enabled auto-payment for user ${userId}, bill ${billId}`);
+          logger.info(`Re-enabled auto-payment for user ${userId}, bill ${canonicalBillId}`);
+        } else {
+          await config.save(); // Save the ID update if needed
         }
       } else {
-        // Create new config
+        // Create new config using canonical ID
         config = await AutoPaymentConfig.create({
           userId,
-          billId,
+          billId: canonicalBillId,
           enabled: true,
         });
-        logger.info(`Created auto-payment config for user ${userId}, bill ${billId}`);
+        logger.info(`Created auto-payment config for user ${userId}, bill ${canonicalBillId}`);
       }
 
       // Audit log
       const { auditLogService } = await import('./AuditLogService');
-      await auditLogService.logAutoPaymentEnable(userId, billId, config._id.toString());
+      await auditLogService.logAutoPaymentEnable(userId, canonicalBillId, config._id.toString());
 
       return config;
     } catch (error) {
@@ -82,10 +96,14 @@ export class AutoPaymentService {
     try {
       await connectDB();
 
-      const config = await AutoPaymentConfig.findOne({ userId, billId });
+      // Normalize billId
+      const bill = await this.findBillByAnyId(billId);
+      const canonicalBillId = bill ? (bill.billId || billId) : billId;
+
+      const config = await AutoPaymentConfig.findOne({ userId, billId: canonicalBillId });
 
       if (!config) {
-        throw new Error(`Auto-payment config not found for user ${userId}, bill ${billId}`);
+        throw new Error(`Auto-payment config not found for user ${userId}, bill ${canonicalBillId}`);
       }
 
       config.enabled = false;
@@ -94,11 +112,11 @@ export class AutoPaymentService {
       }
       await config.save();
 
-      logger.info({ userId, billId, reason }, 'Disabled auto-payment');
+      logger.info({ userId, billId: canonicalBillId, reason }, 'Disabled auto-payment');
 
       // Audit log
       const { auditLogService } = await import('./AuditLogService');
-      await auditLogService.logAutoPaymentDisable(userId, billId, config._id.toString(), reason);
+      await auditLogService.logAutoPaymentDisable(userId, canonicalBillId, config._id.toString(), reason);
 
       return config;
     } catch (error) {
@@ -204,7 +222,17 @@ export class AutoPaymentService {
   ): Promise<IAutoPaymentConfig | null> {
     try {
       await connectDB();
-      return await AutoPaymentConfig.findOne({ userId, billId });
+      // Normalize billId for consistent lookup
+      const bill = await this.findBillByAnyId(billId);
+      const canonicalBillId = bill ? (bill.billId || billId) : billId;
+
+      return await AutoPaymentConfig.findOne({
+        userId,
+        $or: [
+          { billId: canonicalBillId },
+          { billId: billId } // fallback to handle legacy IDs
+        ]
+      });
     } catch (error) {
       logger.error({ error }, 'Error getting auto-payment status');
       throw error;
@@ -417,8 +445,9 @@ export class AutoPaymentService {
       await connectDB();
 
       const AutoPaymentRecord = (await import('../models/AutoPaymentRecord')).default;
-      const PaymentCycle = (await import('../models/PaymentCycle')).default;
-      const { auditLogService } = await import('./AuditLogService');
+      // Normalize billId to the canonical string ID for record lookup and creation
+      const bill = await this.findBillByAnyId(billId);
+      const canonicalBillId = bill ? (bill.billId || billId) : billId;
 
       const activeCycle = await PaymentCycle.findOne({ userId, status: 'active' });
       if (!activeCycle) {
@@ -426,22 +455,27 @@ export class AutoPaymentService {
       }
 
       // We still check for literal duplicates here to prevent double charging the same transactionId/cycle
+      // Check both current ID and canonical ID for duplicates
       const existingRecord = await AutoPaymentRecord.findOne({
         userId,
-        billId,
+        $or: [
+          { billId: canonicalBillId },
+          { billId: billId }
+        ],
         paymentCycleId: activeCycle._id.toString(),
         status: { $in: ['success', 'settled'] },
       });
 
       if (existingRecord) {
-        throw new Error(`Payment already exists for bill ${billId} in current cycle`);
+        logger.info({ billId: canonicalBillId, userId }, 'Payment already exists in current cycle, skipping execution');
+        return existingRecord;
       }
 
-      await auditLogService.logPaymentAttempt(userId, billId, amount, 1);
+      await auditLogService.logPaymentAttempt(userId, canonicalBillId, amount, 1);
 
       const transactionId = `txn-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-      const billToUpdate = await this.findBillByAnyId(billId);
+      const billToUpdate = bill || await this.findBillByAnyId(canonicalBillId);
       if (billToUpdate) {
         billToUpdate.status = 'paid';
         billToUpdate.paymentId = transactionId;
@@ -460,22 +494,22 @@ export class AutoPaymentService {
               billToUpdate.monthlyRecords[recordIndex].status = 'paid';
               billToUpdate.monthlyRecords[recordIndex].paymentId = transactionId;
               billToUpdate.monthlyRecords[recordIndex].paidAt = new Date();
-              logger.info({ billId, recordId: pendingRecords[0].id }, 'Updated monthly record status to paid');
+              logger.info({ billId: canonicalBillId, recordId: pendingRecords[0].id }, 'Updated monthly record status to paid');
             }
           }
         }
 
         await billToUpdate.save();
-        logger.info({ billId, amount, transactionId }, 'Successfully updated bill status and records to paid');
+        logger.info({ billId: canonicalBillId, amount, transactionId }, 'Successfully updated bill status and records to paid');
       } else {
-        logger.warn({ billId }, 'Could not find bill to update status after payment');
+        logger.warn({ billId: canonicalBillId }, 'Could not find bill to update status after payment');
       }
 
-      logger.info({ billId, amount, transactionId }, 'Successfully paid bill through internal system');
+      logger.info({ billId: canonicalBillId, amount, transactionId }, 'Successfully paid bill through internal system');
 
       let record = await AutoPaymentRecord.create({
         userId,
-        billId,
+        billId: canonicalBillId, // Always use canonical ID for new records
         amount,
         paymentDate: new Date(),
         transactionId: transactionId,
