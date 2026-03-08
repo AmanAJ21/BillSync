@@ -18,9 +18,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "BillSync - Smart Bill Management",
   description: "Track, manage, and automate all your recurring payments, subscriptions, and bills efficiently in one unified dashboard.",
-  icons: {
-    icon: "/logo.png",
-  },
 };
 
 export default function RootLayout({
