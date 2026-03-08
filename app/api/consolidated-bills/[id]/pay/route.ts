@@ -34,16 +34,19 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      data: paymentOrder,
+      data: {
+        ...paymentOrder,
+        keyId: process.env.RAZORPAY_KEY_ID
+      },
       message: 'Payment order created successfully',
     });
   } catch (error) {
     logger.error('Error initiating payment', { error });
 
     const errorMessage = error instanceof Error ? error.message : 'Failed to initiate payment';
-    const statusCode = errorMessage.includes('not found') ? 404 : 
-                       errorMessage.includes('Unauthorized') ? 403 :
-                       errorMessage.includes('already paid') ? 400 : 500;
+    const statusCode = errorMessage.includes('not found') ? 404 :
+      errorMessage.includes('Unauthorized') ? 403 :
+        errorMessage.includes('already paid') ? 400 : 500;
 
     return NextResponse.json(
       { error: errorMessage },
