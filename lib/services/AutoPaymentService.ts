@@ -441,11 +441,35 @@ export class AutoPaymentService {
 
       const transactionId = `txn-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-      await Bill.findOneAndUpdate(
-        { billId },
-        { status: 'paid' },
-        { new: true }
-      );
+      const billToUpdate = await this.findBillByAnyId(billId);
+      if (billToUpdate) {
+        billToUpdate.status = 'paid';
+        billToUpdate.paymentId = transactionId;
+        billToUpdate.paidAt = new Date();
+
+        // Update the most recent pending monthly record if it exists
+        if (billToUpdate.monthlyRecords && billToUpdate.monthlyRecords.length > 0) {
+          const pendingRecords = billToUpdate.monthlyRecords
+            .filter(r => r.status === 'pending')
+            .sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime());
+
+          if (pendingRecords.length > 0) {
+            // Find the index of the first pending record to update it correctly in the array
+            const recordIndex = billToUpdate.monthlyRecords.findIndex(r => r.id === pendingRecords[0].id);
+            if (recordIndex !== -1) {
+              billToUpdate.monthlyRecords[recordIndex].status = 'paid';
+              billToUpdate.monthlyRecords[recordIndex].paymentId = transactionId;
+              billToUpdate.monthlyRecords[recordIndex].paidAt = new Date();
+              logger.info({ billId, recordId: pendingRecords[0].id }, 'Updated monthly record status to paid');
+            }
+          }
+        }
+
+        await billToUpdate.save();
+        logger.info({ billId, amount, transactionId }, 'Successfully updated bill status and records to paid');
+      } else {
+        logger.warn({ billId }, 'Could not find bill to update status after payment');
+      }
 
       logger.info({ billId, amount, transactionId }, 'Successfully paid bill through internal system');
 
