@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       totalUsers,
       totalBills,
       pendingBills,
-      totalRevenue,
+      revenueData,
       recentActivity
     ] = await Promise.all([
       // Total users count
@@ -43,11 +43,26 @@ export async function GET(request: NextRequest) {
       // Pending bills count
       bills.countDocuments({ status: 'pending' }),
 
-      // Total revenue from successful payments
-      autoPaymentRecords.aggregate([
-        { $match: { status: { $in: ['success', 'settled'] } } },
-        { $group: { _id: null, total: { $sum: '$amount' } } }
-      ]).toArray().then(result => result[0]?.total || 0),
+      // Total revenue from successful payments (both auto and manual)
+      Promise.all([
+        db.collection('autopaymentrecords').aggregate([
+          { $match: { status: { $in: ['success', 'settled'] } } },
+          { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
+        ]).toArray(),
+        db.collection('manualpayments').aggregate([
+          { $match: { status: 'success' } },
+          { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
+        ]).toArray()
+      ]).then(([autoResult, manualResult]) => {
+        const autoTotal = autoResult[0]?.total || 0;
+        const autoCount = autoResult[0]?.count || 0;
+        const manualTotal = manualResult[0]?.total || 0;
+        const manualCount = manualResult[0]?.count || 0;
+        return {
+          totalRevenue: autoTotal + manualTotal,
+          totalCount: autoCount + manualCount
+        };
+      }),
 
       // Recent admin activity (last 10 activities)
       AuditLog.find({
@@ -73,7 +88,8 @@ export async function GET(request: NextRequest) {
       totalUsers,
       totalBills,
       pendingBills,
-      totalRevenue: Number(totalRevenue.toFixed(2)),
+      totalRevenue: Number(revenueData.totalRevenue.toFixed(2)),
+      totalProcessedPayments: revenueData.totalCount,
       recentActivity: formattedActivity
     });
   } catch (error) {

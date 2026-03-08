@@ -1,10 +1,10 @@
 import { MongoClient, Db } from 'mongodb';
 
 if (!process.env.MONGO_URL) {
-  throw new Error('Please add your MongoDB URI to .env.local');
+  console.warn('Warning: MONGO_URL not found in environment. Database operations will fail.');
 }
 
-const uri = process.env.MONGO_URL;
+const uri = process.env.MONGO_URL || 'mongodb://localhost:27017/unused';
 const options = {};
 
 let client: MongoClient;

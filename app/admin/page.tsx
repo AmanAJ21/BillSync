@@ -24,6 +24,7 @@ interface DashboardStats {
   totalBills: number;
   pendingBills: number;
   totalRevenue: number;
+  totalProcessedPayments: number;
   recentActivity: Array<{
     id: string;
     adminId: string;
@@ -95,7 +96,7 @@ export default function AdminDashboard() {
       }
 
       const data = await response.json();
-      
+
       toast.success('Auto-payment processing completed', {
         description: `Processed: ${data.summary.totalProcessed}, Successful: ${data.summary.successful}, Skipped: ${data.summary.skipped}, Failed: ${data.summary.failed}`,
       });
@@ -186,7 +187,7 @@ export default function AdminDashboard() {
               {loading ? 'Loading...' : formatCurrency(stats?.totalRevenue || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Total processed payments
+              {loading ? 'Loading...' : `${stats?.totalProcessedPayments || 0} successful payments`}
             </p>
           </CardContent>
         </Card>
@@ -231,9 +232,9 @@ export default function AdminDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 ">
-            <Button 
-              variant="default" 
-              className="w-full justify-start mb-2" 
+            <Button
+              variant="default"
+              className="w-full justify-start mb-2"
               size="sm"
               onClick={handleTriggerAutoPayments}
               disabled={processingPayments}

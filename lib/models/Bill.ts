@@ -10,10 +10,14 @@ export interface IBill extends Document {
   userId: string;
   linkedUserIds?: string[];
   billId: string; // Unique identifier for the bill
+  billNumber?: string;
+  customerName?: string;
   provider: string;
   billType: string;
   amount?: number;
   dueDate: Date;
+  dueDay?: number;
+  billingFrequency?: 'monthly' | 'quarterly' | 'yearly' | 'one-time';
   accountNumber?: string;
   description?: string;
   monthlyRecords?: {
@@ -45,6 +49,14 @@ const BillSchema = new Schema<IBill>(
       required: true,
       unique: true,
     },
+    billNumber: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+    customerName: {
+      type: String,
+    },
     provider: {
       type: String,
       required: true,
@@ -52,7 +64,7 @@ const BillSchema = new Schema<IBill>(
     billType: {
       type: String,
       required: true,
-      enum: ['electricity', 'water', 'gas', 'mobile', 'internet', 'other'],
+      // enum: ['electricity', 'water', 'gas', 'mobile', 'internet', 'other'],
     },
     amount: {
       type: Number,
@@ -62,7 +74,17 @@ const BillSchema = new Schema<IBill>(
     },
     dueDate: {
       type: Date,
-      required: true,
+      required: false, // Make this optional as we might use dueDay
+    },
+    dueDay: {
+      type: Number,
+      min: 1,
+      max: 31,
+    },
+    billingFrequency: {
+      type: String,
+      enum: ['monthly', 'quarterly', 'yearly', 'one-time'],
+      default: 'monthly',
     },
     accountNumber: {
       type: String,

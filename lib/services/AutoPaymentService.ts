@@ -392,10 +392,23 @@ export class AutoPaymentService {
       throw new Error(`Bill ${billId} not found`);
     }
 
+    let dueDate = (bill as any).dueDate;
+
+    // If dueDate is missing but dueDay is present (common for admin-managed bills), 
+    // calculate the dueDate for the current month
+    if (!dueDate && (bill as any).dueDay) {
+      const now = new Date();
+      dueDate = new Date(now.getFullYear(), now.getMonth(), (bill as any).dueDay);
+
+      // If if the resulting date is in the past, it's either overdue for this month 
+      // or we should look at next month. But for auto-payment trigger, 
+      // overdue bills should be returned so they can be processed.
+    }
+
     return {
       id: bill.billId || bill._id.toString(),
       amount: bill.amount || 0,
-      dueDate: bill.dueDate,
+      dueDate: dueDate,
       provider: bill.provider,
       type: bill.billType,
     };

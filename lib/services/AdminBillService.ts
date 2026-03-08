@@ -22,6 +22,7 @@ export interface Bill {
   updatedAt?: Date;
   // Keep userId optional for backward compatibility
   userId?: string;
+  autoPaymentEnabled?: boolean;
 }
 
 export interface CreateBillDto {
@@ -262,8 +263,21 @@ export class AdminBillService {
       .limit(pagination.limit)
       .toArray();
 
+    // Fetch auto-payment configs for these bills
+    // Note: In this system, billId is a unique string identifier
+    const billIds = billList.map(b => b.billId).filter(id => !!id);
+    const configs = await db.collection('autopaymentconfigs').find({
+      billId: { $in: billIds }
+    }).toArray();
+
+    const configMap = new Map(configs.map(c => [c.billId, c]));
+
     return {
-      bills: billList.map(b => ({ ...(b as any), _id: b._id?.toString() })),
+      bills: billList.map(b => ({
+        ...(b as any),
+        _id: b._id?.toString(),
+        autoPaymentEnabled: configMap.get(b.billId)?.enabled || false
+      })),
       total,
       page: pagination.page,
       totalPages: Math.ceil(total / pagination.limit)

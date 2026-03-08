@@ -91,6 +91,7 @@ interface Bill {
   dueDay: number;
   billingFrequency: 'monthly' | 'quarterly' | 'yearly' | 'one-time';
   createdAt: string;
+  autoPaymentEnabled?: boolean;
   // Legacy fields
   userId?: string;
   dueDate?: string;
@@ -870,6 +871,7 @@ export default function BillsManagementPage() {
                       <TableHead>Amount</TableHead>
                       <TableHead>Due Day</TableHead>
                       <TableHead>Frequency</TableHead>
+                      <TableHead>Auto-Pay</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -906,6 +908,13 @@ export default function BillsManagementPage() {
                           ) : '-'}
                         </TableCell>
                         <TableCell className="capitalize">{bill.billingFrequency || 'one-time'}</TableCell>
+                        <TableCell>
+                          {bill.autoPaymentEnabled ? (
+                            <Badge variant="default" className="bg-green-500 hover:bg-green-600">Enabled</Badge>
+                          ) : (
+                            <Badge variant="outline">Disabled</Badge>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1010,6 +1019,16 @@ export default function BillsManagementPage() {
                     <p className="font-mono text-sm">{selectedBill.userId}</p>
                   </div>
                 )}
+                <div className="space-y-1">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Auto Payment</span>
+                  <div>
+                    {selectedBill.autoPaymentEnabled ? (
+                      <Badge variant="default" className="bg-green-500">Enabled</Badge>
+                    ) : (
+                      <Badge variant="outline">Disabled</Badge>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="mt-8 border-t pt-6">

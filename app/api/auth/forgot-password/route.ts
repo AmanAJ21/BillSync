@@ -28,23 +28,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Only send email if email service is configured
-    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      // Dynamic require prevents Turbopack from crashing on nodemailer's native deps
-      const nodemailer = (await import('nodemailer')).default;
+    console.log('[forgot-password] Attempting to send email to:', email);
+    const { isEmailConfigured, sendEmail } = await import('@/lib/email/service');
 
-      const transporter = nodemailer.createTransport({
-        host: process.env.EMAIL_HOST,
-        port: 587,
-        secure: false, // true for 465, false for 587 (STARTTLS)
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-      });
-
-      const mailOptions = {
-        from: process.env.EMAIL_FROM || 'noreply@billsync.app',
-        to: email,
+    if (isEmailConfigured()) {
+      console.log('[forgot-password] Email service is configured. Sending...');
+      const template = {
         subject: 'Your New Password - BillSync',
         html: `
           <div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;">
@@ -58,11 +47,21 @@ export async function POST(request: NextRequest) {
             <p>If you didn't request this password reset, please contact support immediately.</p>
           </div>
         `,
+        text: `
+Your New Password - BillSync
+
+Your password has been reset as requested.
+Your new temporary password is: ${newPassword}
+
+Important: Please log in with this new password and change it immediately in your account settings.
+If you didn't request this password reset, please contact support immediately.
+        `,
       };
 
-      await transporter.sendMail(mailOptions);
+      const result = await sendEmail(email, template);
+      console.log('[forgot-password] sendEmail result:', result);
     } else {
-      console.log('[forgot-password] Email service not configured. New password for', email, ':', newPassword);
+      console.warn('[forgot-password] Email service not configured. New password for', email, ':', newPassword);
     }
 
     return addInternalHeaders(
