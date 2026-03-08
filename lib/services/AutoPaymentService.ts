@@ -3,6 +3,8 @@ import Bill from '../models/Bill';
 import connectDB from '../mongoose';
 import logger from '../logger';
 import { notificationService } from './NotificationService';
+import PaymentCycle from '../models/PaymentCycle';
+import { auditLogService } from './AuditLogService';
 
 /**
  * AutoPaymentService
