@@ -23,6 +23,7 @@ interface DashboardStats {
   totalUsers: number;
   totalBills: number;
   pendingBills: number;
+  totalConsolidatedBills?: number;
   totalRevenue: number;
   totalProcessedPayments: number;
   recentActivity: Array<{
@@ -40,6 +41,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processingPayments, setProcessingPayments] = useState(false);
+  const [generatingConsolidated, setGeneratingConsolidated] = useState(false);
 
   useEffect(() => {
     async function fetchStats() {
@@ -115,6 +117,29 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleTriggerConsolidated = async () => {
+    try {
+      setGeneratingConsolidated(true);
+      const response = await fetch('/api/consolidated-bills/trigger', {
+        method: 'POST',
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success(`Success! Generated ${data.data?.generatedCount || 0} consolidated bills.`);
+        // Reload page to refresh stats since fetchStats isn't exported into this scope nicely
+        window.location.reload();
+      } else {
+        toast.error(`Error: ${data.message || 'Failed to generate consolidated bills'}`);
+      }
+    } catch (error) {
+      console.error('Trigger error:', error);
+      toast.error('Failed to trigger consolidated bill generation');
+    } finally {
+      setGeneratingConsolidated(false);
+    }
+  };
+
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
@@ -131,7 +156,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card className="hover:shadow-md transition-all duration-300 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
             <IconUsers size={80} />
@@ -203,9 +228,29 @@ export default function AdminDashboard() {
             </p>
           </CardContent>
         </Card>
+
+        <Card className="hover:shadow-md transition-all duration-300 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none text-purple-500">
+            <IconFileText size={80} />
+          </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Consolidated Bills</CardTitle>
+            <div className="h-4 w-4 text-muted-foreground">
+              <IconFileText className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-500">
+              {loading ? <span className="animate-pulse bg-muted text-transparent rounded">0000</span> : stats?.totalConsolidatedBills?.toLocaleString() || '0'}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Currently generated bills
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-6">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 mt-6">
         <Card className="hover:shadow-md transition-all duration-300 bg-primary/5 cursor-pointer border-primary/20" onClick={handleTriggerAutoPayments}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-primary">Trigger Auto-Payments</CardTitle>
@@ -213,6 +258,16 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground mt-2">Force trigger the background auto-payment worker for all pending cycles.</p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-all duration-300 bg-purple-500/5 cursor-pointer border-purple-500/20" onClick={handleTriggerConsolidated}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-purple-600 dark:text-purple-400">Generate Consolidated</CardTitle>
+            {generatingConsolidated ? <IconLoader2 className="h-4 w-4 text-purple-500 animate-spin" /> : <IconFileText className="h-4 w-4 text-purple-500" />}
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mt-2">Generate consolidated bills for all users for the current period.</p>
           </CardContent>
         </Card>
 

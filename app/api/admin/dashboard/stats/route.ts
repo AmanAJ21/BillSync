@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       totalUsers,
       totalBills,
       pendingBills,
+      totalConsolidatedBills,
       revenueData,
       recentActivity
     ] = await Promise.all([
@@ -42,6 +43,9 @@ export async function GET(request: NextRequest) {
 
       // Pending bills count
       bills.countDocuments({ status: 'pending' }),
+
+      // Total consolidated bills count
+      db.collection('consolidatedbills').countDocuments(),
 
       // Total revenue from successful payments (both auto and manual)
       Promise.all([
@@ -88,6 +92,7 @@ export async function GET(request: NextRequest) {
       totalUsers,
       totalBills,
       pendingBills,
+      totalConsolidatedBills,
       totalRevenue: Number(revenueData.totalRevenue.toFixed(2)),
       totalProcessedPayments: revenueData.totalCount,
       recentActivity: formattedActivity
