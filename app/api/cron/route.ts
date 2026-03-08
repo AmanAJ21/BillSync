@@ -50,22 +50,22 @@ export async function GET(request: NextRequest) {
             results.autoPayments = { success: false, error: err.message };
         }
 
-        // 2. Manage Payment Cycles
-        // Closes cycles that have ended and initializes new ones
-        try {
-            results.cycles = await managePaymentCycles();
-        } catch (err: any) {
-            logger.error({ err }, 'Payment cycle management failed in cron');
-            results.cycles = { success: false, error: err.message };
-        }
-
-        // 3. Generate Consolidated Bills
+        // 2. Generate Consolidated Bills
         // Generates bills for users whose cycles just ended
         try {
             results.consolidation = await generateConsolidatedBills();
         } catch (err: any) {
             logger.error({ err }, 'Consolidated bill generation failed in cron');
             results.consolidation = { success: false, error: err.message };
+        }
+
+        // 3. Manage Payment Cycles
+        // Closes cycles that have ended and initializes new ones
+        try {
+            results.cycles = await managePaymentCycles();
+        } catch (err: any) {
+            logger.error({ err }, 'Payment cycle management failed in cron');
+            results.cycles = { success: false, error: err.message };
         }
 
         return NextResponse.json({

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
+import {
   IconFileInvoice,
   IconDownload,
   IconCreditCard,
@@ -38,6 +38,7 @@ export default function ConsolidatedBillsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [paying, setPaying] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
 
   const fetchBills = async (pageNum: number = 1) => {
     setLoading(true);
@@ -67,6 +68,28 @@ export default function ConsolidatedBillsPage() {
       fetchBills();
     }
   }, [user]);
+
+  const handleTriggerBill = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch(`/api/consolidated-bills/trigger`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (res.ok) {
+        toast.success('Successfully generated new consolidated bill!');
+        fetchBills(1);
+      } else {
+        const error = await res.json();
+        toast.error(error.error || 'Failed to generate consolidated bill');
+      }
+    } catch (error) {
+      console.error('Error triggering bill generation:', error);
+      toast.error('Failed to generate consolidated bill');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const handlePayBill = async (billId: string) => {
     setPaying(billId);
@@ -138,7 +161,7 @@ export default function ConsolidatedBillsPage() {
             color: '#3b82f6',
           },
           modal: {
-            ondismiss: function() {
+            ondismiss: function () {
               setPaying(null);
               toast.info('Payment cancelled');
             }
@@ -240,10 +263,16 @@ export default function ConsolidatedBillsPage() {
             View and manage your monthly aggregated bills
           </p>
         </div>
-        <Button onClick={() => fetchBills(page)} variant="outline" size="sm">
-          <IconRefresh className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleTriggerBill} disabled={generating} size="sm">
+            <IconReceipt className="h-4 w-4 mr-2" />
+            {generating ? 'Generating...' : 'Generate Now'}
+          </Button>
+          <Button onClick={() => fetchBills(page)} variant="outline" size="sm">
+            <IconRefresh className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Summary Stats */}
@@ -319,7 +348,7 @@ export default function ConsolidatedBillsPage() {
                       </h3>
                       {getStatusBadge(bill.status)}
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground mb-4">
                       <div>
                         <span className="font-medium">Cycle Period:</span>
@@ -354,7 +383,7 @@ export default function ConsolidatedBillsPage() {
                           View Details
                         </Button>
                       </Link>
-                      
+
                       <Button
                         variant="outline"
                         size="sm"
